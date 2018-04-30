@@ -392,7 +392,8 @@ public class ReactWebViewManager extends SimpleViewManager<WebView> {
 
     // https://stackoverflow.com/questions/49645746/s9-s9-specific-webview-device-crash-report
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-      webView.setLayerType(WebView.LAYER_TYPE_SOFTWARE, null);
+      // use LAYER_TYPE_NONE as LAYER_TYPE_SOFTWARE causes WebView to show blank page
+      webView.setLayerType(WebView.LAYER_TYPE_NONE, null);
     }
 
     return webView;
