@@ -9,13 +9,17 @@
 
 package com.facebook.react.views.textinput;
 
+import android.content.Context;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.text.Layout;
+import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import com.facebook.infer.annotation.Assertions;
 import com.facebook.react.bridge.JSApplicationIllegalArgumentException;
 import com.facebook.react.common.annotations.VisibleForTesting;
+import com.facebook.react.R;
 import com.facebook.react.uimanager.Spacing;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.UIViewOperationQueue;
@@ -39,6 +43,8 @@ public class ReactTextInputShadowNode extends ReactBaseTextShadowNode
 
   @VisibleForTesting public static final String PROP_TEXT = "text";
 
+  private static Drawable sDummyEditTextBackgroundDrawable = null;
+
   // Represents the {@code text} property only, not possible nested content.
   private @Nullable String mText = null;
 
@@ -50,33 +56,26 @@ public class ReactTextInputShadowNode extends ReactBaseTextShadowNode
   }
 
   @Override
-  public void setThemedContext(ThemedReactContext themedContext) {
+  public void setThemedContext(final ThemedReactContext themedContext) {
     super.setThemedContext(themedContext);
 
-    // {@code EditText} has by default a border at the bottom of its view
-    // called "underline". To have a native look and feel of the TextEdit
-    // we have to preserve it at least by default.
-    // The border (underline) has its padding set by the background image
-    // provided by the system (which vary a lot among versions and vendors
-    // of Android), and it cannot be changed.
-    // So, we have to enforce it as a default padding.
-    // TODO #7120264: Cache this stuff better.
-    EditText editText = new EditText(getThemedContext());
-    setDefaultPadding(Spacing.START, editText.getPaddingStart());
-    setDefaultPadding(Spacing.TOP, editText.getPaddingTop());
-    setDefaultPadding(Spacing.END, editText.getPaddingEnd());
-    setDefaultPadding(Spacing.BOTTOM, editText.getPaddingBottom());
+    LayoutInflater sInflater =
+            (LayoutInflater) themedContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+    EditText editText  =
+            (EditText) sInflater.inflate(R.layout.dummy_edit_text, null, false);
+
+    // creating the EditText theme background on UI thread async to prevent above mentioned race
+    // scenario
+    if (sDummyEditTextBackgroundDrawable == null) {
+        themedContext.runOnUiQueueThread(new Runnable() {
+            @Override
+            public void run() {
+                sDummyEditTextBackgroundDrawable = new EditText(themedContext).getBackground();
+            }
+        });
+    }
 
     mDummyEditText = editText;
-
-    // We must measure the EditText without paddings, so we have to reset them.
-    mDummyEditText.setPadding(0, 0, 0, 0);
-
-    // This is needed to fix an android bug since 4.4.3 which will throw an NPE in measure,
-    // setting the layoutParams fixes it: https://code.google.com/p/android/issues/detail?id=75877
-    mDummyEditText.setLayoutParams(
-        new ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
   }
 
   @Override
@@ -89,17 +88,30 @@ public class ReactTextInputShadowNode extends ReactBaseTextShadowNode
     // measure() should never be called before setThemedContext()
     EditText editText = Assertions.assertNotNull(mDummyEditText);
 
-    if (mLocalData == null) {
+    if (mLocalData == null || sDummyEditTextBackgroundDrawable == null) {
       // No local data, no intrinsic size.
       return YogaMeasureOutput.make(0, 0);
     }
 
+    editText.setBackground(sDummyEditTextBackgroundDrawable.getConstantState().newDrawable());
+    setDefaultPadding(Spacing.START, editText.getPaddingStart());
+    setDefaultPadding(Spacing.TOP, editText.getPaddingTop());
+    setDefaultPadding(Spacing.END, editText.getPaddingEnd());
+    setDefaultPadding(Spacing.BOTTOM, editText.getPaddingBottom());
+
+    // We must measure the EditText without paddings, so we have to reset them.
+    editText.setPadding(0, 0, 0, 0);
+
+    // This is needed to fix an android bug since 4.4.3 which will throw an NPE in measure,
+    // setting the layoutParams fixes it: https://code.google.com/p/android/issues/detail?id=75877
+    editText.setLayoutParams(
+          new ViewGroup.LayoutParams(
+                  ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
     mLocalData.apply(editText);
-
     editText.measure(
-        MeasureUtil.getMeasureSpec(width, widthMode),
-        MeasureUtil.getMeasureSpec(height, heightMode));
-
+          MeasureUtil.getMeasureSpec(width, widthMode),
+          MeasureUtil.getMeasureSpec(height, heightMode));
     return YogaMeasureOutput.make(editText.getMeasuredWidth(), editText.getMeasuredHeight());
   }
 
