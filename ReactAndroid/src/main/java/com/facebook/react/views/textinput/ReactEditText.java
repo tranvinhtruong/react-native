@@ -109,6 +109,15 @@ public class ReactEditText extends EditText {
     mScrollWatcher = null;
   }
 
+  @Override
+  protected void drawableStateChanged() {
+    try {
+      super.drawableStateChanged();
+    } catch (Exception e) {
+      // prevent drawable crash
+    }
+  }
+
   // After the text changes inside an EditText, TextView checks if a layout() has been requested.
   // If it has, it will not scroll the text to the end of the new text inserted, but wait for the
   // next layout() to be called. However, we do not perform a layout() after a requestLayout(), so
